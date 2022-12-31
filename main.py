@@ -37,7 +37,7 @@ def choose_proxy(proxies):
             print(f'checking {formated_proxy}')
             try:
                 with requests.Session() as session:
-                    session.get(url='https://www.airbnb.com', proxies=formated_proxy, timeout=(3.05, 27))
+                    session.get(url='https://www.airbnb.com', proxies=formated_proxy, timeout=3)
                 session.close()
                 selected_proxies.append(item)
                 print(f'{item} selected')
@@ -58,22 +58,26 @@ def get_detail_url(url, selected_proxies):
     end = False
     page = 1
     next_page_url = url
+    detail_urls = list()
     while not end:
         print(next_page_url)
         if page % 10 == 0:
             selected_proxy = random.choice(selected_proxies)
         trial = 0
-        success = False
-        while (trial < 8 or success == False):
+        while (trial < 8):
             try:
                 session = requests.Session()
                 formated_proxy = {
                     "http": f"http://{selected_proxy}",
                     "https": f"http://{selected_proxy}"
                 }
-                response = session.get(next_page_url, proxies=formated_proxy, timeout=(3.05, 27))
+                headers = {
+                    'referer': next_page_url,
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0',
+                    }
+                response = session.get(next_page_url, proxies=formated_proxy, headers=headers, timeout=3)
                 session.close()
-                success = True
+                break
             except (ProxyError, ConnectTimeout) as e:
                 print(e)
                 selected_proxy = random.choice(selected_proxies)
@@ -84,7 +88,6 @@ def get_detail_url(url, selected_proxies):
             soup = BeautifulSoup(response.text, 'html.parser')
             next_page_url = f"{url_schema}{soup.select_one(next_page_locator)['href']}"
             html_detail_urls = soup.select(detail_url_locators)
-            detail_urls = list()
             url_locator = "div.cy5jw6o.dir.dir-ltr > a"
             for i in html_detail_urls:
                 detail_urls.append(f"{url_schema}/{i.select_one(url_locator)['href']}")
@@ -106,10 +109,9 @@ def to_file(data, save_path):
 if __name__ == '__main__':
     url = "https://www.airbnb.com/s/Belgium/homes?tab_id=home_tab&refinement_paths%5B%5D=%2Fhomes&price_filter_input_type=0&price_filter_num_nights=5&query=Belgium&place_id=ChIJl5fz7WR9wUcR8g_mObTy60c&date_picker_type=calendar&flexible_trip_lengths%5B%5D=weekend_trip&checkin=2023-01-29&checkout=2023-01-30&adults=1&source=structured_search_input_header&search_type=autocomplete_click"
     save_path = "C:\project\airbnbscraper\result.csv"
-    proxies = get_proxy()
-    selected_proxies = choose_proxy(proxies)
-    # selected_proxies = ["96.68.234.217:8080", "143.198.56.234:443", "205.185.126.246:3128", "200.105.215.22:33630",
-    # #                     "146.158.19.130:8080"]
+    # proxies = get_proxy()
+    # selected_proxies = choose_proxy(proxies)
+    selected_proxies = ["50.238.158.12:8080", "134.238.252.143:8080"]
     detail_urls = get_detail_url(url,selected_proxies=selected_proxies)
 
     # to_file(data, save_path)
