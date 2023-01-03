@@ -6,7 +6,12 @@ import requests
 from bs4 import BeautifulSoup
 from requests import ConnectTimeout, ReadTimeout, ConnectionError
 from requests.exceptions import ProxyError
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.support.wait import WebDriverWait
 from urllib3.exceptions import ReadTimeoutError
+from selenium.webdriver.support import expected_conditions as ec
 
 
 def get_proxy():
@@ -125,7 +130,6 @@ def get_datas(urls, selected_proxies):
             print(f"Change proxy to {selected_proxy}")
         else:
             pass
-        print(counter)
         print(url)
         data = {
             'link': [],
@@ -133,28 +137,18 @@ def get_datas(urls, selected_proxies):
             'instagram': []
             # 'website': []
         }
-        status_code = 0
+        status_code = None
         trial = 0
-        while (trial < 5 and status_code != 200):
+        while (trial < 5 and status_code == None):
             try:
-                if (status_code != 0 or status_code != 200):
-                    selected_proxy = random.choice(selected_proxies)
-                    print(f"Change proxy to {selected_proxy}")
-                else:
-                    pass
-                session = requests.Session()
-                formated_proxy = {
-                    "http": f"http://{selected_proxy}",
-                    "https": f"http://{selected_proxy}"
-                }
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0'
-                }
-                response = session.get(url, proxies=formated_proxy, headers=headers, timeout=(3,27))
-                session.close()
-                status_code = response.status_code
-
-            except (ProxyError, ConnectTimeout, ReadTimeoutError, ReadTimeout, ConnectionError, ConnectionError) as e:
+                driver = webdriver_setup(proxies=selected_proxy)
+                driver.delete_all_cookies()
+                driver.fullscreen_window()
+                driver.get(url)
+                WebDriverWait(driver, 10).until(ec.presence_of_element_located((By.CSS_SELECTOR,name_locator)))
+                status_code = ec.presence_of_element_located((By.CSS_SELECTOR,name_locator))
+                print(status_code)
+            except Exception as e:
                 print(e)
                 selected_proxy = random.choice(selected_proxies)
                 print(f"Change proxy to {selected_proxy}")
@@ -163,14 +157,14 @@ def get_datas(urls, selected_proxies):
         print(f'got response {status_code}')
 
         if trial < 5:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            data['link'] = response.url
-            data['name'] = soup.select_one(name_locator)
-
+            data['link'] = driver.current_url
+            data['name'] = driver.find_element(By.CSS_SELECTOR, name_locator).text
             try:
-                profile_url = f"{url_schema}{soup.select_one(profile_locator)['href']}"
+                profile_url = f"{url_schema}{driver.find_element(profile_locator).get_attribute('href')}"
+                print(profile_url)
                 data['instagram'] = get_instagram(url=profile_url, selected_proxy=selected_proxy)
-            except Exception:
+            except Exception as e:
+                print(e)
                 data['instagram'] = None
 
             # data['website'] = soup.select_one(website_locator)
@@ -183,6 +177,31 @@ def get_datas(urls, selected_proxies):
 
     return datas
 
+def webdriver_setup(proxies = None):
+    ip, port = proxies.split(sep=':')
+    useragent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0'
+    firefox_options = Options()
+
+    firefox_options.headless = True
+    firefox_options.add_argument('--no-sandbox')
+
+    firefox_options.set_preference("general.useragent.override", useragent)
+    firefox_options.set_preference('network.proxy.type', 1)
+    firefox_options.set_preference('network.proxy.socks', ip)
+    firefox_options.set_preference('network.proxy.socks_port', int(port))
+    firefox_options.set_preference('network.proxy.socks_version', 4)
+    firefox_options.set_preference('network.proxy.socks_remote_dns', True)
+    firefox_options.set_preference('network.proxy.http', ip)
+    firefox_options.set_preference('network.proxy.http_port', int(port))
+    firefox_options.set_preference('network.proxy.ssl', ip)
+    firefox_options.set_preference('network.proxy.ssl_port', int(port))
+
+    firefox_options.set_capability("acceptSslCerts", True)
+    firefox_options.set_capability("acceptInsecureCerts", True)
+    firefox_options.set_capability("ignore-certificate-errors", False)
+
+    driver = webdriver.Firefox(options=firefox_options)
+    return driver
 
 def get_instagram(url,selected_proxy):
     session = requests.Session()
@@ -220,11 +239,11 @@ def to_csv(datas=None, filepath=None):
 if __name__ == '__main__':
     url = "https://www.airbnb.com/s/Belgium/homes?tab_id=home_tab&refinement_paths%5B%5D=%2Fhomes&price_filter_input_type=0&price_filter_num_nights=5&query=Belgium&place_id=ChIJl5fz7WR9wUcR8g_mObTy60c&date_picker_type=calendar&flexible_trip_lengths%5B%5D=weekend_trip&checkin=2023-01-29&checkout=2023-01-30&adults=1&source=structured_search_input_header&search_type=autocomplete_click"
     save_path = "C:/project/airbnbscraper/result.csv"
-    proxies = get_proxy()
-    selected_proxies = choose_proxy(proxies)
-    # selected_proxies = ['158.69.52.218:9300','178.33.198.181:3128','201.229.250.19:8080', '115.68.221.147:80', '112.217.162.5:3128', '179.96.28.58:80', '147.139.193.92:3128']
+    # proxies = get_proxy()
+    # selected_proxies = choose_proxy(proxies)
+    selected_proxies = ['8.219.97.248:80','20.210.26.214:3128','168.138.33.70:8080', '203.154.91.28:8080','45.91.133.137:8080', '109.207.76.37:8080', '66.42.53.233:8000', '178.33.198.181:3128']
     # detail_urls = get_detail_url(url, selected_proxies=selected_proxies)
     # print(detail_urls)
-    detail_urls = ['https://www.airbnb.com//rooms/45249678?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000', 'https://www.airbnb.com//rooms/670806019201784094?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000', 'https://www.airbnb.com//rooms/556403144075739762?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000', 'https://www.airbnb.com//rooms/640957686671430797?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000', 'https://www.airbnb.com//rooms/43537696?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000', 'https://www.airbnb.com//rooms/19157408?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000', 'https://www.airbnb.com//rooms/663178942796891124?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000', 'https://www.airbnb.com//rooms/52332812?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000', 'https://www.airbnb.com//rooms/23837349?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000', 'https://www.airbnb.com//rooms/52580537?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000', 'https://www.airbnb.com//rooms/4985457?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000', 'https://www.airbnb.com//rooms/556320999594495655?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000']
+    detail_urls = ['https://www.airbnb.com//rooms/45249678?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000']
     datas = get_datas(detail_urls, selected_proxies=selected_proxies)
     to_csv(datas, save_path)
