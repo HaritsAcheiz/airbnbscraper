@@ -162,8 +162,12 @@ def get_datas(urls, selected_proxies):
                 driver.fullscreen_window()
                 driver.get(url)
                 driver.implicitly_wait(15)
-                WebDriverWait(driver,10).until(ec.visibility_of_element_located((By.CSS_SELECTOR, close_modal_locator)))
-                driver.find_element(By.CSS_SELECTOR, close_modal_locator).click()
+                try:
+                    WebDriverWait(driver,10).until(ec.visibility_of_element_located((By.CSS_SELECTOR, close_modal_locator)))
+                    driver.find_element(By.CSS_SELECTOR, close_modal_locator).click()
+                except Exception as e:
+                    print(f"modal translation is not visible.\n {e}")
+                    pass
                 WebDriverWait(driver, 10).until(ec.presence_of_element_located((By.CSS_SELECTOR, profile_locator)))
                 status_code = ec.presence_of_element_located((By.CSS_SELECTOR, profile_locator))
             except Exception as e:
