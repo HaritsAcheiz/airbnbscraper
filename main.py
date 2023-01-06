@@ -1,3 +1,4 @@
+# Import required package
 import csv
 import os
 import random
@@ -15,14 +16,15 @@ from urllib3.exceptions import ReadTimeoutError
 from selenium.webdriver.support import expected_conditions as ec
 
 
+# Scrape free proxy from free proxy list dot net
 def get_proxy():
     print("Collecting proxies...")
     with requests.Session() as s:
-        response = s.get('https://www.us-proxy.org/')
+        response = s.get('https://free-proxy-list.net/')
     s.close()
     soup = BeautifulSoup(response.text, 'html.parser')
     list_data = soup.select('table.table.table-striped.table-bordered>tbody>tr')
-    proxies = []
+    scraped_proxies = []
     blocked_cc = ['IR', 'RU']
     for i in list_data:
         ip = i.select_one('tr > td:nth-child(1)').text
@@ -31,14 +33,16 @@ def get_proxy():
         if cc in blocked_cc:
             continue
         else:
-            proxies.append(f'{ip}:{port}')
-    print(f"{len(proxies)} proxies collected")
-    return proxies
+            scraped_proxies.append(f'{ip}:{port}')
+    print(f"{len(scraped_proxies)} proxies collected")
+    return scraped_proxies
 
-def choose_proxy(proxies):
-    selected_proxies = []
-    for i, item in enumerate(proxies):
-        if i < len(proxies) and len(selected_proxies) < 8:
+
+# Choose working proxy from scraped proxy
+def choose_proxy(scraped_proxies):
+    working_proxies = []
+    for i, item in enumerate(scraped_proxies):
+        if i < len(scraped_proxies) and len(working_proxies) < 8:
             formated_proxy = {
                 "http": f"http://{item}",
                 "https": f"http://{item}"
@@ -52,7 +56,7 @@ def choose_proxy(proxies):
                     response = session.get(url='https://www.airbnb.com', proxies=formated_proxy, headers=headers,
                                            timeout=5)
                 if response.status_code == 200:
-                    selected_proxies.append(item)
+                    working_proxies.append(item)
                     print(f'{item} selected')
                 else:
                     print(f"not working with status code: {response.status_code}")
@@ -62,22 +66,23 @@ def choose_proxy(proxies):
                 pass
         else:
             break
-    return selected_proxies
+    return working_proxies
 
-def get_detail_url(url, selected_proxies):
+
+def get_detail_url(url, working_proxies):
     print('Collecting url...')
     parsed_url = url.split('/')
     url_schema = f"{parsed_url[0]}/{parsed_url[1]}/{parsed_url[2]}"
     detail_url_locators = "div.gh7uyir.giajdwt.g14v8520.dir.dir-ltr > div"
     next_page_locator = "a._1bfat5l"
-    selected_proxy = random.choice(selected_proxies)
+    selected_proxy = random.choice(working_proxies)
     end = False
     page = 1
     next_page_url = url
     detail_urls = list()
     while not end:
         if page % 10 == 0:
-            selected_proxy = random.choice(selected_proxies)
+            selected_proxy = random.choice(working_proxies)
         else:
             pass
         trial = 0
@@ -98,8 +103,7 @@ def get_detail_url(url, selected_proxies):
                 success = True
             except (ProxyError, ConnectTimeout, ReadTimeoutError, ReadTimeout, ConnectionError, ConnectionError) as e:
                 print(e)
-                # selected_proxies.remove(selected_proxy)
-                selected_proxy = random.choice(selected_proxies)
+                selected_proxy = random.choice(working_proxies)
                 print(f"Change proxy to {selected_proxy}")
                 trial += 1
 
@@ -133,14 +137,13 @@ def get_datas(urls, selected_proxies):
     print('Collecting datas...')
     datas = list()
     name_locator = 'h1._fecoyn4'
-    profile_locator = 'div.h1144bf3.dir.dir-ltr > div > a'
-    job_locator = 'div._o7dyhr>section>div:nth-child(4)>section>div:nth-child(2)>div:nth-child(1)>span._1ax9t0a'
+    # profile_locator = 'div.h1144bf3.dir.dir-ltr > div > a'
+    profile_locator = '/html/body/div[5]/div/div/div[1]/div/div[1]/div/div/div/div[1]/main/div/div[1]/div[6]/div/div/div/div[2]/div/section/div[1]/div[1]/div/a'
+    # job_locator = 'div._o7dyhr>section>div:nth-child(4)>section>div:nth-child(2)>div:nth-child(1)>span._1ax9t0a'
+    job_locator = '/html/body/div[5]/div/div/div[1]/div/div[1]/div[1]/main/div/div/div/div[2]/div/section/div[4]/section/div[2]/div[3]/span[2]'
     close_modal_locator = 'div._1piuevz > button.czcfm7x.dir.dir-ltr'
-    # website_locator = 'div.d1isfkwk.dir.dir-ltr>span.ll4r2nl.dir.dir-ltr'
     selected_proxy = random.choice(selected_proxies)
     for counter, url in enumerate(urls):
-        parsed_url = url.split('/')
-        url_schema = f"{parsed_url[0]}/{parsed_url[1]}/{parsed_url[2]}"
         if counter % 10 == 0:
             selected_proxy = random.choice(selected_proxies)
             print(f"Change proxy to {selected_proxy}")
@@ -151,7 +154,6 @@ def get_datas(urls, selected_proxies):
             'link': [],
             'name': [],
             'instagram': []
-            # 'website': []
         }
         status_code = None
         trial = 0
@@ -160,44 +162,46 @@ def get_datas(urls, selected_proxies):
                 driver = webdriver_setup(proxies=selected_proxy)
                 driver.delete_all_cookies()
                 driver.fullscreen_window()
+                driver.set_page_load_timeout(30)
                 driver.get(url)
-                driver.implicitly_wait(15)
-                try:
-                    WebDriverWait(driver,10).until(ec.visibility_of_element_located((By.CSS_SELECTOR, close_modal_locator)))
-                    driver.find_element(By.CSS_SELECTOR, close_modal_locator).click()
-                except Exception as e:
-                    print(f"modal translation is not visible.\n {e}")
-                    pass
-                WebDriverWait(driver, 10).until(ec.presence_of_element_located((By.CSS_SELECTOR, profile_locator)))
-                status_code = ec.presence_of_element_located((By.CSS_SELECTOR, profile_locator))
+                status_code = ec.presence_of_element_located((By.CSS_SELECTOR, close_modal_locator))
             except Exception as e:
                 driver.quit()
-                # selected_proxies.remove(selected_proxy)
-                print(e)
                 selected_proxy = random.choice(selected_proxies)
                 print(f"Change proxy to {selected_proxy}")
                 trial += 1
 
         if trial < 5:
-            data['link'] = driver.current_url
-            data['name'] = driver.find_element(By.CSS_SELECTOR, name_locator).text
             try:
-                WebDriverWait(driver,10).until(ec.element_to_be_clickable((By.CSS_SELECTOR, profile_locator)))
-                driver.find_element(By.CSS_SELECTOR,profile_locator).click()
-                WebDriverWait(driver, 10).until(ec.presence_of_element_located((By.CSS_SELECTOR, job_locator)))
-                # data['instagram'] = driver.find_element(By.CSS_SELECTOR, job_locator).text.split('@')[-1].split()[0]
-                data['instagram'] = driver.find_element(By.CSS_SELECTOR, job_locator).text
+                WebDriverWait(driver,20).until(ec.presence_of_element_located((By.CSS_SELECTOR, close_modal_locator)))
+                driver.find_element(By.CSS_SELECTOR, close_modal_locator).click()
+            except Exception as e:
+                print(f"modal translation is not visible")
+                pass
+
+            try:
+                data['link'] = driver.current_url
+                data['name'] = driver.find_element(By.CSS_SELECTOR, name_locator).text
+                WebDriverWait(driver, 20).until(ec.element_to_be_clickable((By.XPATH, profile_locator)))
+                wait = WebDriverWait(driver.find_element(By.XPATH, profile_locator).click(),20)
+                wait.until(ec.presence_of_element_located((By.XPATH, job_locator)))
+                # tab1 = driver.window_handles[0]
+                # tab2 = driver.window_handles[1]
+                # driver.switch_to.window(tab2)
+                print(driver.current_url)
+                data['instagram'] = f"https://www.instagram.com/{driver.find_element(By.XPATH, job_locator).text.split('@')[-1].split()[0]}/"
                 print(data['instagram'])
             except Exception as e:
+                print(f'cannot find instagram link')
                 print(e)
-                data['instagram'] = 'Null'
-            # data['website'] = soup.select_one(website_locator)
+                data['instagram'] = None
             driver.quit()
             datas.append(data.copy())
 
         else:
             print('proxy error')
             continue
+        print(f'{len(datas)} datas are collected')
 
     return datas
 
@@ -206,7 +210,7 @@ def webdriver_setup(proxies = None):
     useragent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0'
     firefox_options = Options()
 
-    firefox_options.headless = True
+    # firefox_options.headless = True
     firefox_options.add_argument('--no-sandbox')
 
     firefox_options.set_preference("intl.accept_languages", "en-GB")
@@ -247,18 +251,18 @@ def to_csv(datas=None, filepath=None):
 if __name__ == '__main__':
     url = "https://www.airbnb.com/s/Belgium/homes?tab_id=home_tab&refinement_paths%5B%5D=%2Fhomes&price_filter_input_type=0&price_filter_num_nights=5&query=Belgium&place_id=ChIJl5fz7WR9wUcR8g_mObTy60c&date_picker_type=calendar&flexible_trip_lengths%5B%5D=weekend_trip&checkin=2023-01-29&checkout=2023-01-30&adults=1&source=structured_search_input_header&search_type=autocomplete_click"
     save_path = "C:/project/airbnbscraper/result.csv"
-    proxies = get_proxy()
-    selected_proxies = choose_proxy(proxies)
-    print(selected_proxies)
-    # selected_proxies = ['207.5.79.174:3128', '24.106.221.230:53281', '23.82.16.149:3128', '23.106.47.29:3128']
+    # scraped_proxies = get_proxy()
+    # working_proxies = choose_proxy(scraped_proxies)
+    # print(working_proxies)
+    working_proxies = ['104.237.228.229:8080', '212.80.213.94:8080', '83.171.236.79:8080', '181.94.197.42:8080', '185.198.61.146:3128', '162.212.158.59:3128', '185.24.219.36:39811']
     # detail_urls = get_detail_url(url, selected_proxies=selected_proxies)
     # print(detail_urls)
     detail_urls = [
-        'https://www.airbnb.com//rooms/41953733?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
-        'https://www.airbnb.com//rooms/19157408?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
-        'https://www.airbnb.com//rooms/45249678?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
+        # 'https://www.airbnb.com//rooms/41953733?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
+        # 'https://www.airbnb.com//rooms/19157408?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
+        # 'https://www.airbnb.com//rooms/45249678?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
         'https://www.airbnb.com//rooms/670806019201784094?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
         'https://www.airbnb.com//rooms/648208678396952595?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
         'https://www.airbnb.com//rooms/50257276?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000']
-    datas = get_datas(detail_urls, selected_proxies=selected_proxies)
+    datas = get_datas(detail_urls, selected_proxies=working_proxies)
     to_csv(datas, save_path)
