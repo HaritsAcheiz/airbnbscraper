@@ -23,7 +23,7 @@ def get_proxy():
     soup = BeautifulSoup(response.text, 'html.parser')
     list_data = soup.select('table.table.table-striped.table-bordered>tbody>tr')
     proxies = []
-    blocked_cc = ['IR','RU']
+    blocked_cc = ['IR', 'RU']
     for i in list_data:
         ip = i.select_one('tr > td:nth-child(1)').text
         port = i.select_one('tr > td:nth-child(2)').text
@@ -36,7 +36,7 @@ def get_proxy():
     return proxies
 
 def choose_proxy(proxies):
-    selected_proxies=[]
+    selected_proxies = []
     for i, item in enumerate(proxies):
         if i < len(proxies) and len(selected_proxies) < 8:
             formated_proxy = {
@@ -49,7 +49,8 @@ def choose_proxy(proxies):
             print(f'checking {formated_proxy}')
             try:
                 with requests.Session() as session:
-                    response = session.get(url='https://www.airbnb.com', proxies=formated_proxy, headers=headers, timeout=5)
+                    response = session.get(url='https://www.airbnb.com', proxies=formated_proxy, headers=headers,
+                                           timeout=5)
                 if response.status_code == 200:
                     selected_proxies.append(item)
                     print(f'{item} selected')
@@ -81,7 +82,7 @@ def get_detail_url(url, selected_proxies):
             pass
         trial = 0
         success = False
-        while (trial < 8 and success is False):
+        while trial < 8 and success is False:
             try:
                 session = requests.Session()
                 formated_proxy = {
@@ -91,7 +92,7 @@ def get_detail_url(url, selected_proxies):
                 headers = {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0'
                     }
-                response = session.get(next_page_url, proxies=formated_proxy, headers=headers, timeout=(5,27))
+                response = session.get(next_page_url, proxies=formated_proxy, headers=headers, timeout=(5, 27))
                 time.sleep(5)
                 session.close()
                 success = True
@@ -134,6 +135,7 @@ def get_datas(urls, selected_proxies):
     name_locator = 'h1._fecoyn4'
     profile_locator = 'div.h1144bf3.dir.dir-ltr > div > a'
     job_locator = 'div._o7dyhr>section>div:nth-child(4)>section>div:nth-child(2)>div:nth-child(1)>span._1ax9t0a'
+    close_modal_locator = 'div._1piuevz > button.czcfm7x.dir.dir-ltr'
     # website_locator = 'div.d1isfkwk.dir.dir-ltr>span.ll4r2nl.dir.dir-ltr'
     selected_proxy = random.choice(selected_proxies)
     for counter, url in enumerate(urls):
@@ -160,8 +162,10 @@ def get_datas(urls, selected_proxies):
                 driver.fullscreen_window()
                 driver.get(url)
                 driver.implicitly_wait(15)
-                WebDriverWait(driver, 10).until(ec.presence_of_element_located((By.CSS_SELECTOR,profile_locator)))
-                status_code = ec.presence_of_element_located((By.CSS_SELECTOR,profile_locator))
+                WebDriverWait(driver,10).until(ec.visibility_of_element_located((By.CSS_SELECTOR, close_modal_locator)))
+                driver.find_element(By.CSS_SELECTOR, close_modal_locator).click()
+                WebDriverWait(driver, 10).until(ec.presence_of_element_located((By.CSS_SELECTOR, profile_locator)))
+                status_code = ec.presence_of_element_located((By.CSS_SELECTOR, profile_locator))
             except Exception as e:
                 driver.quit()
                 # selected_proxies.remove(selected_proxy)
@@ -177,7 +181,8 @@ def get_datas(urls, selected_proxies):
                 WebDriverWait(driver,10).until(ec.element_to_be_clickable((By.CSS_SELECTOR, profile_locator)))
                 driver.find_element(By.CSS_SELECTOR,profile_locator).click()
                 WebDriverWait(driver, 10).until(ec.presence_of_element_located((By.CSS_SELECTOR, job_locator)))
-                data['instagram'] = driver.find_element(By.CSS_SELECTOR, job_locator).text.split('@')[-1].split()[0]
+                # data['instagram'] = driver.find_element(By.CSS_SELECTOR, job_locator).text.split('@')[-1].split()[0]
+                data['instagram'] = driver.find_element(By.CSS_SELECTOR, job_locator).text
                 print(data['instagram'])
             except Exception as e:
                 print(e)
@@ -197,7 +202,7 @@ def webdriver_setup(proxies = None):
     useragent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0'
     firefox_options = Options()
 
-    # firefox_options.headless = True
+    firefox_options.headless = True
     firefox_options.add_argument('--no-sandbox')
 
     firefox_options.set_preference("intl.accept_languages", "en-GB")
@@ -238,10 +243,10 @@ def to_csv(datas=None, filepath=None):
 if __name__ == '__main__':
     url = "https://www.airbnb.com/s/Belgium/homes?tab_id=home_tab&refinement_paths%5B%5D=%2Fhomes&price_filter_input_type=0&price_filter_num_nights=5&query=Belgium&place_id=ChIJl5fz7WR9wUcR8g_mObTy60c&date_picker_type=calendar&flexible_trip_lengths%5B%5D=weekend_trip&checkin=2023-01-29&checkout=2023-01-30&adults=1&source=structured_search_input_header&search_type=autocomplete_click"
     save_path = "C:/project/airbnbscraper/result.csv"
-    # proxies = get_proxy()
-    # selected_proxies = choose_proxy(proxies)
-    # print(selected_proxies)
-    selected_proxies = ['207.5.79.174:3128', '24.106.221.230:53281', '23.82.16.149:3128', '23.106.47.29:3128']
+    proxies = get_proxy()
+    selected_proxies = choose_proxy(proxies)
+    print(selected_proxies)
+    # selected_proxies = ['207.5.79.174:3128', '24.106.221.230:53281', '23.82.16.149:3128', '23.106.47.29:3128']
     # detail_urls = get_detail_url(url, selected_proxies=selected_proxies)
     # print(detail_urls)
     detail_urls = [
