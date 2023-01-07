@@ -108,9 +108,9 @@ def get_detail_url(url, working_proxies):
                 trial += 1
 
         if trial < 8:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            next_page_url_href = soup.select_one(next_page_locator)['href']
             try:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                next_page_url_href = soup.select_one(next_page_locator)['href']
                 next_page_url = f"{url_schema}{next_page_url_href}"
                 print(next_page_url)
             except TypeError as e:
