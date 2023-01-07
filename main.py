@@ -183,12 +183,13 @@ def get_datas(urls, selected_proxies):
                 data['link'] = driver.current_url
                 data['name'] = driver.find_element(By.CSS_SELECTOR, name_locator).text
                 WebDriverWait(driver, 20).until(ec.element_to_be_clickable((By.XPATH, profile_locator)))
-                wait = WebDriverWait(driver.find_element(By.XPATH, profile_locator).click(),20)
-                wait.until(ec.presence_of_element_located((By.XPATH, job_locator)))
-                # tab1 = driver.window_handles[0]
-                # tab2 = driver.window_handles[1]
-                # driver.switch_to.window(tab2)
+                driver.find_element(By.XPATH, profile_locator).click()
+                time.sleep(20)
+                tab1 = driver.window_handles[0]
+                tab2 = driver.window_handles[1]
+                driver.switch_to.window(tab2)
                 print(driver.current_url)
+                WebDriverWait(driver, 20).until(ec.presence_of_element_located((By.XPATH, job_locator)))
                 data['instagram'] = f"https://www.instagram.com/{driver.find_element(By.XPATH, job_locator).text.split('@')[-1].split()[0]}/"
                 print(data['instagram'])
             except Exception as e:
@@ -210,7 +211,7 @@ def webdriver_setup(proxies = None):
     useragent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0'
     firefox_options = Options()
 
-    # firefox_options.headless = True
+    firefox_options.headless = True
     firefox_options.add_argument('--no-sandbox')
 
     firefox_options.set_preference("intl.accept_languages", "en-GB")
@@ -249,20 +250,20 @@ def to_csv(datas=None, filepath=None):
     print(f'{filepath} created')
 
 if __name__ == '__main__':
-    url = "https://www.airbnb.com/s/Belgium/homes?tab_id=home_tab&refinement_paths%5B%5D=%2Fhomes&price_filter_input_type=0&price_filter_num_nights=5&query=Belgium&place_id=ChIJl5fz7WR9wUcR8g_mObTy60c&date_picker_type=calendar&flexible_trip_lengths%5B%5D=weekend_trip&checkin=2023-01-29&checkout=2023-01-30&adults=1&source=structured_search_input_header&search_type=autocomplete_click"
+    url = "https://www.airbnb.com/s/Belgium/homes?tab_id=home_tab&refinement_paths%5B%5D=%2Fhomes&flexible_trip_lengths%5B%5D=one_week&price_filter_input_type=0&price_filter_num_nights=1&query=Belgium&place_id=ChIJl5fz7WR9wUcR8g_mObTy60c&date_picker_type=calendar&checkin=2023-01-07&checkout=2023-01-08&adults=1&source=structured_search_input_header&search_type=autocomplete_click&federated_search_session_id=dc608cc7-e1d4-4363-9d73-4b7da1ff6d05&pagination_search=true&cursor=eyJzZWN0aW9uX29mZnNldCI6MiwiaXRlbXNfb2Zmc2V0IjoyODgsInZlcnNpb24iOjF9"
     save_path = "C:/project/airbnbscraper/result.csv"
-    # scraped_proxies = get_proxy()
-    # working_proxies = choose_proxy(scraped_proxies)
+    scraped_proxies = get_proxy()
+    working_proxies = choose_proxy(scraped_proxies)
     # print(working_proxies)
-    working_proxies = ['104.237.228.229:8080', '212.80.213.94:8080', '83.171.236.79:8080', '181.94.197.42:8080', '185.198.61.146:3128', '162.212.158.59:3128', '185.24.219.36:39811']
-    # detail_urls = get_detail_url(url, selected_proxies=selected_proxies)
+    # working_proxies = ['104.237.228.229:8080', '212.80.213.94:8080', '83.171.236.79:8080', '181.94.197.42:8080', '185.198.61.146:3128', '162.212.158.59:3128', '185.24.219.36:39811']
+    detail_urls = get_detail_url(url, working_proxies=working_proxies)
     # print(detail_urls)
-    detail_urls = [
+    # detail_urls = [
         # 'https://www.airbnb.com//rooms/41953733?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
         # 'https://www.airbnb.com//rooms/19157408?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
         # 'https://www.airbnb.com//rooms/45249678?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
-        'https://www.airbnb.com//rooms/670806019201784094?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
-        'https://www.airbnb.com//rooms/648208678396952595?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
-        'https://www.airbnb.com//rooms/50257276?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000']
+        # 'https://www.airbnb.com//rooms/670806019201784094?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
+        # 'https://www.airbnb.com//rooms/648208678396952595?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000',
+        # 'https://www.airbnb.com//rooms/50257276?adults=1&check_in=2023-01-29&check_out=2023-01-30&previous_page_section_name=1000']
     datas = get_datas(detail_urls, selected_proxies=working_proxies)
     to_csv(datas, save_path)
