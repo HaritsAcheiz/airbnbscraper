@@ -139,7 +139,7 @@ def get_datas(urls, selected_proxies):
     name_locator = 'h1._fecoyn4'
     # profile_locator = 'div.h1144bf3.dir.dir-ltr > div > a'
     profile_locator = '/html/body/div[5]/div/div/div[1]/div/div[1]/div/div/div/div[1]/main/div/div[1]/div[6]/div/div/div/div[2]/div/section/div[1]/div[1]/div/a'
-    # job_locator = 'div._o7dyhr>section>div:nth-child(4)>section>div:nth-child(2)>div:nth-child(1)>span._1ax9t0a'
+    ## job_locator = 'div._o7dyhr>section>div:nth-child(4)>section>div:nth-child(2)>div:nth-child(1)>span._1ax9t0a'
     job_locator = '/html/body/div[5]/div/div/div[1]/div/div[1]/div[1]/main/div/div/div/div[2]/div/section/div[4]/section/div[2]/div[3]/span[2]'
     close_modal_locator = 'div._1piuevz > button.czcfm7x.dir.dir-ltr'
     selected_proxy = random.choice(selected_proxies)
