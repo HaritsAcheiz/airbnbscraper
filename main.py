@@ -98,7 +98,7 @@ def get_detail_url(url, working_proxies):
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0'
                     }
                 response = session.get(next_page_url, proxies=formated_proxy, headers=headers, timeout=(5, 27))
-                time.sleep(5)
+                time.sleep(10)
                 session.close()
                 success = True
             except (ProxyError, ConnectTimeout, ReadTimeoutError, ReadTimeout, ConnectionError, ConnectionError) as e:
@@ -109,20 +109,25 @@ def get_detail_url(url, working_proxies):
 
         if trial < 8:
             soup = BeautifulSoup(response.text, 'html.parser')
+            next_page_url_href = soup.select_one(next_page_locator)['href']
             try:
-                next_page_url = f"{url_schema}{soup.select_one(next_page_locator)['href']}"
+                next_page_url = f"{url_schema}{next_page_url_href}"
                 print(next_page_url)
             except TypeError as e:
-                print(e)
+                print(f'next page locator get {e}')
                 end = True
             if page > 2:
                 end = True
             else:
                 pass
             html_detail_urls = soup.select(detail_url_locators)
-            url_locator = "div.cy5jw6o.dir.dir-ltr > a"
+            url_locator = "a.bn2bl2p.dir.dir-ltr"
             for i in html_detail_urls:
-                detail_urls.append(f"{url_schema}/{i.select_one(url_locator)['href']}")
+                try:
+                    detail_urls.append(f"{url_schema}/{i.select_one(url_locator)['href']}")
+                except TypeError as e:
+                    print(f'url locator get {e}')
+                    break
             print(f"{len(detail_urls)} url collected from {str(page)} page")
             page += 1
 
@@ -254,7 +259,7 @@ if __name__ == '__main__':
     save_path = "C:/project/airbnbscraper/result.csv"
     scraped_proxies = get_proxy()
     working_proxies = choose_proxy(scraped_proxies)
-    # print(working_proxies)
+    print(working_proxies)
     # working_proxies = ['104.237.228.229:8080', '212.80.213.94:8080', '83.171.236.79:8080', '181.94.197.42:8080', '185.198.61.146:3128', '162.212.158.59:3128', '185.24.219.36:39811']
     detail_urls = get_detail_url(url, working_proxies=working_proxies)
     # print(detail_urls)
