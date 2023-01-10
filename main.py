@@ -48,13 +48,16 @@ def choose_proxy(scraped_proxies):
                 "https": f"http://{item}"
             }
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:108.0) Gecko/20100101 Firefox/108.0',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
             }
             print(f'checking {formated_proxy}')
             try:
                 with requests.Session() as session:
                     response = session.get(url='https://www.airbnb.com', proxies=formated_proxy, headers=headers,
-                                           timeout=5)
+                                           timeout=(5,27))
                 if response.status_code == 200:
                     working_proxies.append(item)
                     print(f'{item} selected')
@@ -87,7 +90,7 @@ def get_detail_url(url, working_proxies):
             pass
         trial = 0
         success = False
-        while trial < 8 and success is False:
+        while trial < 8 or success is False:
             try:
                 session = requests.Session()
                 formated_proxy = {
@@ -95,12 +98,14 @@ def get_detail_url(url, working_proxies):
                     "https": f"http://{selected_proxy}"
                 }
                 headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:108.0) Gecko/20100101 Firefox/108.0',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Connection': 'keep-alive',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
                     }
                 response = session.get(next_page_url, proxies=formated_proxy, headers=headers, timeout=(5, 27))
-                time.sleep(10)
-                session.close()
                 success = True
+                session.close()
             except (ProxyError, ConnectTimeout, ReadTimeoutError, ReadTimeout, ConnectionError, ConnectionError) as e:
                 print(e)
                 selected_proxy = random.choice(working_proxies)
@@ -116,10 +121,13 @@ def get_detail_url(url, working_proxies):
             except TypeError as e:
                 print(f'next page locator get {e}')
                 end = True
-            if page > 2:
+
+            if page > 3:
                 end = True
+
             else:
                 pass
+
             html_detail_urls = soup.select(detail_url_locators)
             url_locator = "a.bn2bl2p.dir.dir-ltr"
             for i in html_detail_urls:
@@ -133,8 +141,8 @@ def get_detail_url(url, working_proxies):
 
         else:
             print("Proxy Error")
-            detail_urls = None
             page += 1
+            continue
 
     return detail_urls
 
@@ -213,7 +221,7 @@ def get_datas(urls, selected_proxies):
 
 def webdriver_setup(proxies = None):
     ip, port = proxies.split(sep=':')
-    useragent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0'
+    useragent = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:108.0) Gecko/20100101 Firefox/108.0'
     firefox_options = Options()
 
     firefox_options.headless = True
@@ -256,11 +264,11 @@ def to_csv(datas=None, filepath=None):
 
 if __name__ == '__main__':
     url = "https://www.airbnb.com/s/Belgium/homes?tab_id=home_tab&refinement_paths%5B%5D=%2Fhomes&flexible_trip_lengths%5B%5D=one_week&price_filter_input_type=0&price_filter_num_nights=1&query=Belgium&place_id=ChIJl5fz7WR9wUcR8g_mObTy60c&date_picker_type=calendar&checkin=2023-01-07&checkout=2023-01-08&adults=1&source=structured_search_input_header&search_type=autocomplete_click&federated_search_session_id=dc608cc7-e1d4-4363-9d73-4b7da1ff6d05&pagination_search=true&cursor=eyJzZWN0aW9uX29mZnNldCI6MiwiaXRlbXNfb2Zmc2V0IjoyODgsInZlcnNpb24iOjF9"
-    save_path = "C:/project/airbnbscraper/result.csv"
-    scraped_proxies = get_proxy()
-    working_proxies = choose_proxy(scraped_proxies)
-    print(working_proxies)
-    # working_proxies = ['104.237.228.229:8080', '212.80.213.94:8080', '83.171.236.79:8080', '181.94.197.42:8080', '185.198.61.146:3128', '162.212.158.59:3128', '185.24.219.36:39811']
+    save_path = "C:/NaruProject/airbnbscraper/result.csv"
+    # scraped_proxies = get_proxy()
+    # working_proxies = choose_proxy(scraped_proxies)
+    # print(working_proxies)
+    working_proxies = ['154.236.179.226:1981', '45.170.252.116:3128', '116.42.182.182:3128', '195.158.18.236:3128']
     detail_urls = get_detail_url(url, working_proxies=working_proxies)
     # print(detail_urls)
     # detail_urls = [
