@@ -42,7 +42,7 @@ def get_proxy():
 def choose_proxy(scraped_proxies):
     working_proxies = []
     for i, item in enumerate(scraped_proxies):
-        if i < len(scraped_proxies) and len(working_proxies) < 8:
+        if i < len(scraped_proxies) and len(working_proxies) < 3:
             formated_proxy = {
                 "http": f"http://{item}",
                 "https": f"http://{item}"
@@ -57,13 +57,13 @@ def choose_proxy(scraped_proxies):
             try:
                 with requests.Session() as session:
                     response = session.get(url='https://www.airbnb.com', proxies=formated_proxy, headers=headers,
-                                           timeout=(5,27))
+                                           timeout=(15,27))
                 if response.status_code == 200:
                     working_proxies.append(item)
                     print(f'{item} selected')
                 else:
                     print(f"not working with status code: {response.status_code}")
-                session.close()
+                response.close()
             except Exception as e:
                 print(f"not working with {e}")
                 pass
@@ -79,18 +79,17 @@ def get_detail_url(url, working_proxies):
     detail_url_locators = "div.gh7uyir.giajdwt.g14v8520.dir.dir-ltr > div"
     next_page_locator = "a._1bfat5l"
     selected_proxy = random.choice(working_proxies)
-    end = False
     page = 1
     next_page_url = url
     detail_urls = list()
-    while not end:
+    end = False
+    while end == False:
         if page % 10 == 0:
             selected_proxy = random.choice(working_proxies)
         else:
             pass
         trial = 0
-        success = False
-        while trial < 8 or success is False:
+        while trial < 8:
             try:
                 session = requests.Session()
                 formated_proxy = {
@@ -103,31 +102,20 @@ def get_detail_url(url, working_proxies):
                     'Connection': 'keep-alive',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
                     }
-                response = session.get(next_page_url, proxies=formated_proxy, headers=headers, timeout=(5, 27))
-                success = True
-                session.close()
+                response = session.get(next_page_url, proxies=formated_proxy, headers=headers, timeout=(15, 27))
+                break
             except (ProxyError, ConnectTimeout, ReadTimeoutError, ReadTimeout, ConnectionError, ConnectionError) as e:
                 print(e)
                 selected_proxy = random.choice(working_proxies)
                 print(f"Change proxy to {selected_proxy}")
                 trial += 1
 
-        if trial < 8:
-            try:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                next_page_url_href = soup.select_one(next_page_locator)['href']
-                next_page_url = f"{url_schema}{next_page_url_href}"
-                print(next_page_url)
-            except TypeError as e:
-                print(f'next page locator get {e}')
-                end = True
-
-            if page > 3:
-                end = True
-
-            else:
-                pass
-
+        try:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            response.close()
+            next_page_url_href = soup.select_one(next_page_locator)['href']
+            next_page_url = f"{url_schema}{next_page_url_href}"
+            print(next_page_url)
             html_detail_urls = soup.select(detail_url_locators)
             url_locator = "a.bn2bl2p.dir.dir-ltr"
             for i in html_detail_urls:
@@ -138,11 +126,11 @@ def get_detail_url(url, working_proxies):
                     break
             print(f"{len(detail_urls)} url collected from {str(page)} page")
             page += 1
-
-        else:
-            print("Proxy Error")
-            page += 1
-            continue
+        except TypeError as e:
+            print(e)
+            print('reach end of page')
+            end = True
+            break
 
     return detail_urls
 
@@ -268,7 +256,7 @@ if __name__ == '__main__':
     # scraped_proxies = get_proxy()
     # working_proxies = choose_proxy(scraped_proxies)
     # print(working_proxies)
-    working_proxies = ['154.236.179.226:1981', '45.170.252.116:3128', '116.42.182.182:3128', '195.158.18.236:3128']
+    working_proxies = ['154.236.179.226:1981', '103.156.15.18:8080', '182.253.183.67:80']
     detail_urls = get_detail_url(url, working_proxies=working_proxies)
     # print(detail_urls)
     # detail_urls = [
