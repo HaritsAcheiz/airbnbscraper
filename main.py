@@ -4,6 +4,7 @@ import os
 import random
 import time
 import re
+from http.client import EXPECTATION_FAILED
 
 import requests
 from bs4 import BeautifulSoup
@@ -167,18 +168,55 @@ def get_datas(urls, selected_proxies):
             'price': None,
             'review': None
         }
-        status_code = None
         trial = 0
-        while (trial < 5 or status_code == None):
+        while trial < 5:
             try:
                 driver = webdriver_setup(proxies=selected_proxy)
                 driver.delete_all_cookies()
                 driver.fullscreen_window()
                 driver.set_page_load_timeout(15)
                 driver.get(url)
+                # WebDriverWait(driver, 10).until(ec.element_to_be_clickable((By.XPATH, profile_locator)))
+                try:
+                    WebDriverWait(driver,10).until(ec.presence_of_element_located((By.CSS_SELECTOR, close_modal_locator)))
+                    driver.find_element(By.CSS_SELECTOR, close_modal_locator).click()
+                except Exception as e:
+                    print(e)
+                    WebDriverWait(driver, 10).until(ec.element_to_be_clickable((By.XPATH, profile_locator)))
+                    print(f"modal translation is not visible")
+
+                data['link'] = driver.current_url
+                data['name'] = driver.find_element(By.CSS_SELECTOR, name_locator).text
+                driver.find_element(By.XPATH, profile_locator).click()
+                try:
+                    data['price'] = int(re.findall(r'\b\d+\b', driver.find_element(By.XPATH, disc_price_locator).text))
+                except Exception as e:
+                    data['price'] = int(re.findall(r'\b\d+\b', driver.find_element(By.XPATH, price_locator).text))
+                driver.find_element(By.XPATH, profile_locator).click()
+                time.sleep(20)
+                tab1 = driver.window_handles[0]
+                tab2 = driver.window_handles[1]
+                driver.switch_to.window(tab2)
+                print(driver.current_url)
+                WebDriverWait(driver, 10).until(ec.presence_of_element_located((By.XPATH, job_locator)))
+                try:
+                    data[
+                        'instagram'] = f"https://www.instagram.com/{driver.find_element(By.XPATH, job_locator).text.split('@')[-1].split()[0]}/"
+                except Exception as e:
+                    data['instagram'] = None
+                try:
+                    data['review'] = int(re.findall(r'\b\d+\b', driver.find_element(By.XPATH, review_locator).text))
+                except:
+                    data['review'] = 0
+
+                driver.quit()
+                datas.append(data.copy())
+
+                break
+
                 # status_code = ec.presence_of_element_located((By.CSS_SELECTOR, close_modal_locator))
                 # status_code = ec.presence_of_element_located((By.CSS_SELECTOR, profile_locator))
-                status_code = 'success'
+
             except Exception as e:
                 driver.quit()
                 selected_proxy = random.choice(selected_proxies)
@@ -186,44 +224,9 @@ def get_datas(urls, selected_proxies):
                 trial += 1
 
         if trial < 5:
-            # WebDriverWait(driver,10).until(ec.presence_of_element_located((By.CSS_SELECTOR, close_modal_locator)))
-            WebDriverWait(driver, 10).until(ec.element_to_be_clickable((By.XPATH, profile_locator)))
-            if ec.presence_of_element_located((By.CSS_SELECTOR, close_modal_locator)) != None:
-                driver.find_element(By.CSS_SELECTOR, close_modal_locator).click()
-            else:
-                print(f"modal translation is not visible")
-
-            data['link'] = driver.current_url
-            data['name'] = driver.find_element(By.CSS_SELECTOR, name_locator).text
-            driver.find_element(By.XPATH, profile_locator).click()
-            try:
-                data['price'] = int(re.findall(r'\b\d+\b', driver.find_element(By.XPATH, disc_price_locator).text))
-            except Exception as e:
-                data['price'] = int(re.findall(r'\b\d+\b', driver.find_element(By.XPATH, price_locator).text))
-            driver.find_element(By.XPATH, profile_locator).click()
-            time.sleep(20)
-            tab1 = driver.window_handles[0]
-            tab2 = driver.window_handles[1]
-            driver.switch_to.window(tab2)
-            print(driver.current_url)
-            WebDriverWait(driver, 10).until(ec.presence_of_element_located((By.XPATH, job_locator)))
-            try:
-                data['instagram'] = f"https://www.instagram.com/{driver.find_element(By.XPATH, job_locator).text.split('@')[-1].split()[0]}/"
-            except Exception as e:
-                data['instagram'] = None
-            try:
-                data['review'] = int(re.findall(r'\b\d+\b', driver.find_element(By.XPATH, review_locator).text))
-            except:
-                data['review'] = 0
-
-            driver.quit()
-            datas.append(data.copy())
-
+            print(f'{len(datas)} datas are collected')
         else:
-            print('proxy error')
-            continue
-
-        print(f'{len(datas)} datas are collected')
+            print('Connenction Error')
 
     return datas
 
