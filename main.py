@@ -40,7 +40,7 @@ def get_proxy():
 
 def get_proxy_2():
     print('collecting proxies...')
-    url = 'https://api.proxyscrape.com/proxytable.php?protocol=http&timeout=250&country=us&ssl=all&anonymity=all'
+    url = 'https://api.proxyscrape.com/proxytable.php?protocol=http&timeout=300&country=all&ssl=all&anonymity=all'
     headers = {
         "Host": "api.proxyscrape.com",
         "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:108.0) Gecko/20100101 Firefox/108.0",
@@ -55,8 +55,6 @@ def get_proxy_2():
         "Sec-Fetch-Site": "same-site",
         "TE": "trailers"
     }
-    # detail_proxy = {"ip_address": None, "timeout": None, "uptime": None}
-    # scraped_proxies = list()
 
     with requests.Session() as session:
         response = session.get(url, headers=headers)
@@ -86,7 +84,7 @@ def choose_proxy(scraped_proxies):
             try:
                 with requests.Session() as session:
                     response = session.get(url='https://www.airbnb.com', proxies=formated_proxy, headers=headers,
-                                           timeout=(7,27))
+                                           timeout=(3,10), allow_redirects=False)
                 if response.status_code == 200:
                     working_proxies.append(item)
                     print(f'{item} selected')
@@ -131,7 +129,7 @@ def get_detail_url(url, working_proxies):
                     'Connection': 'keep-alive',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
                     }
-                response = session.get(next_page_url, proxies=formated_proxy, headers=headers, timeout=(7, 27))
+                response = session.get(next_page_url, proxies=formated_proxy, headers=headers, timeout=(3, 27), allow_redirects=False)
                 break
             except (ProxyError, ConnectTimeout, ReadTimeoutError, ReadTimeout, ConnectionError, ConnectionError) as e:
                 print(e)
@@ -178,7 +176,6 @@ def get_datas(urls, selected_proxies):
     job_locator = '/html/body/div[5]/div/div/div[1]/div/div[1]/div[1]/main/div/div/div/div[2]/div/section/div[4]/section/div[2]/div[3]/span[2]'
     close_modal_locator = 'div._1piuevz>button.czcfm7x.dir.dir-ltr'
     review_locator = '//div[@id="review-section-title"]'
-    load_more_locator = '/html/body/div[5]/div/div/div[1]/div/div[1]/div[1]/main/div/div/div/div[2]/div/section/section/div/div/div[2]/div[1]/div[11]/button'
 
     selected_proxy = random.choice(selected_proxies)
     for counter, url in enumerate(urls[0:10]):
@@ -226,7 +223,7 @@ def get_datas(urls, selected_proxies):
                 tab1 = driver.window_handles[0]
                 tab2 = driver.window_handles[1]
                 driver.switch_to.window(tab2)
-                wait.until(ec.presence_of_element_located((By.XPATH, load_more_locator)))
+                wait.until(ec.presence_of_element_located((By.XPATH, review_locator)))
                 print(driver.current_url)
                 try:
                     data['instagram'] = f"https://www.instagram.com/{driver.find_element(By.XPATH, job_locator).text.split('@')[-1].split()[0]}/"
