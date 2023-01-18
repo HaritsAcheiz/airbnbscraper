@@ -5,6 +5,7 @@ import os
 import random
 import time
 import re
+from itertools import repeat
 
 import requests
 from bs4 import BeautifulSoup
@@ -262,16 +263,107 @@ def get_datas(urls, selected_proxies):
 
     return datas
 
+def get_datas_2(url, selected_proxies):
+    print('Collecting datas...')
+
+    name_locator = 'h1._fecoyn4'
+    price_locator = '/html/body/div[5]/div/div/div[1]/div/div[1]/div/div/div/div[1]/main/div/div[1]/div[3]/div/div[2]/div/div/div[1]/div/div/div/div/div/div/div[1]/div[1]/div[1]/div/span/div/span[1]'
+    disc_price_locator = '/html/body/div[5]/div/div/div[1]/div/div[1]/div/div/div/div[1]/main/div/div[1]/div[3]/div/div[2]/div/div/div[1]/div/div/div/div/div/div/div[1]/div[1]/div[1]/div/span/div/span[2]'
+    profile_locator = '/html/body/div[5]/div/div/div[1]/div/div[1]/div/div/div/div[1]/main/div/div[1]/div[6]/div/div/div/div[2]/div/section/div[1]/div[1]/div/a'
+    job_locator = '/html/body/div[5]/div/div/div[1]/div/div[1]/div[1]/main/div/div/div/div[2]/div/section/div[4]/section/div[2]/div[3]/span[2]'
+    close_modal_locator = 'div._1piuevz>button.czcfm7x.dir.dir-ltr'
+    review_locator = '//div[@id="review-section-title"]'
+
+    selected_proxy = random.choice(selected_proxies)
+
+    data = {
+        'link': None,
+        'name': None,
+        'instagram': None,
+        'price': None,
+        'review': None
+    }
+    trial = 0
+    while trial < 5:
+        try:
+            driver = webdriver_setup(proxies=selected_proxy)
+            driver.delete_all_cookies()
+            driver.fullscreen_window()
+            wait = WebDriverWait(driver, 180)
+            driver.set_page_load_timeout(250)
+            driver.get(url)
+            try:
+                wait.until(ec.presence_of_element_located((By.CSS_SELECTOR, close_modal_locator)))
+                driver.find_element(By.CSS_SELECTOR, close_modal_locator).click()
+            except Exception as e:
+                print(f"modal translation is not visible {e}")
+
+            wait.until(ec.element_to_be_clickable((By.XPATH, profile_locator)))
+            data['link'] = driver.current_url
+            data['name'] = driver.find_element(By.CSS_SELECTOR, name_locator).text
+            price = re.findall(r'\b\d+\b', driver.find_element(By.XPATH, disc_price_locator).text)
+
+            if len(price) > 0:
+                data['price'] = int(price[0])
+            else:
+                print('no discount')
+                price = re.findall(r'\b\d+\b', driver.find_element(By.XPATH, price_locator).text)
+                data['price'] = int(price[0])
+
+            driver.find_element(By.XPATH, profile_locator).click()
+            tab1 = driver.window_handles[0]
+            tab2 = driver.window_handles[1]
+            driver.switch_to.window(tab2)
+            wait.until(ec.presence_of_element_located((By.XPATH, review_locator)))
+            print(driver.current_url)
+            try:
+                data['instagram'] = f"https://www.instagram.com/{driver.find_element(By.XPATH, job_locator).text.split('@')[-1].split()[0]}/"
+                print(data['instagram'])
+            except Exception as e:
+                print(f'instagram not found {e}')
+                data['instagram'] = None
+            try:
+                review = re.findall(r'\b\d+\b', driver.find_element(By.XPATH, review_locator).text)
+                if len(review) > 0:
+                    data['review'] = int(review[0])
+                else:
+                    print('no review')
+                    data['review'] = 0
+            except Exception as e:
+                print(f'no review {e}')
+                data['review'] = 0
+
+            driver.quit()
+            break
+
+        except Exception as e:
+            print(e)
+            driver.quit()
+            selected_proxy = random.choice(selected_proxies)
+            print(f"Change proxy to {selected_proxy}")
+            trial += 1
+
+    if trial < 5:
+        print(f'Data collected')
+    else:
+        print('Connection error')
+
+    return data
+
 def webdriver_setup(proxies = None):
     ip, port = proxies.split(sep=':')
     useragent = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:108.0) Gecko/20100101 Firefox/108.0'
     firefox_options = Options()
 
+    # setup browser mode
     firefox_options.headless = True
     firefox_options.add_argument('--no-sandbox')
 
+    # setup language and user-agent
     firefox_options.set_preference("intl.accept_languages", "en-GB")
     firefox_options.set_preference("general.useragent.override", useragent)
+
+    # setup proxy
     firefox_options.set_preference('network.proxy.type', 1)
     firefox_options.set_preference('network.proxy.socks', ip)
     firefox_options.set_preference('network.proxy.socks_port', int(port))
@@ -282,6 +374,13 @@ def webdriver_setup(proxies = None):
     firefox_options.set_preference('network.proxy.ssl', ip)
     firefox_options.set_preference('network.proxy.ssl_port', int(port))
 
+    # setup geo location
+    # firefox_options.set_preference('geo.prompt.testing', True)
+    # firefox_options.set_preference('geo.prompt.testing.allow', True)
+    # firefox_options.set_preference('geo.provider.network.url',
+    #                          'data:application/json,{"location": {"lat": 51.47, "lng": 0.0}, "accuracy": 100.0}')
+
+    # setup ssl certificate
     firefox_options.set_capability("acceptSslCerts", True)
     firefox_options.set_capability("acceptInsecureCerts", True)
     firefox_options.set_capability("ignore-certificate-errors", False)
@@ -323,22 +422,290 @@ if __name__ == '__main__':
     # to_csv(datas, save_path)
 
     # with multithreading
-    # scraped_proxies = get_proxy()
-    #
-    # start_time = time.time()
-    #
+
+    # cek proxy
+    start_time = time.time()
+    scraped_proxies = get_proxy()
     # working_proxies = list()
     # with concurrent.futures.thread.ThreadPoolExecutor() as executor:
     #     working_proxies = list(filter(lambda x: x != 'Not Working', executor.map(cek_proxy, scraped_proxies)))
     #
     # print(working_proxies)
+    working_proxies = ['185.217.137.241:1337', '213.230.107.235:8080', '51.154.79.204:80', '129.213.115.0:8088', '45.8.179.241:1337', '82.66.18.27:8080', '178.248.60.103:80', '158.101.197.81:3128']
     # print(f'got {len(working_proxies)} working proxy(s)')
-    # print('processing time: %.2f second(s)' % (time.time() - start_time))
+    print('check proxy processing time: %.2f second(s)' % (time.time() - start_time))
 
-    working_proxies = ['135.181.14.45:5959', '110.78.186.23:8080', '41.174.132.58:8080', '195.158.18.236:3128']
-
+    # get detail urls
     start_time = time.time()
 
-    detail_urls = get_detail_urls(url, working_proxies)
+    # detail_urls = get_detail_urls(url, working_proxies)
+    # print(detail_urls)
 
-    print('processing time: %.2f second(s)' % (time.time() - start_time))
+    detail_urls = [
+        'https://www.airbnb.com//rooms/45085010?adults=1&children=0&infants=0&pets=0&check_in=2023-02-26&check_out=2023-03-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/41187001?adults=1&children=0&infants=0&pets=0&check_in=2023-03-12&check_out=2023-03-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/42303113?adults=1&children=0&infants=0&pets=0&check_in=2023-01-19&check_out=2023-01-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/558544417835722215?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/42986806?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/691904944587171135?adults=1&children=0&infants=0&pets=0&check_in=2023-03-05&check_out=2023-03-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/731499385976629530?adults=1&children=0&infants=0&pets=0&check_in=2023-01-26&check_out=2023-02-02&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/580185003907474705?adults=1&children=0&infants=0&pets=0&check_in=2023-01-23&check_out=2023-01-28&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/11939475?adults=1&children=0&infants=0&pets=0&check_in=2023-01-19&check_out=2023-01-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/713641514702154143?adults=1&children=0&infants=0&pets=0&check_in=2023-01-21&check_out=2023-01-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/633972514136474985?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/25160240?adults=1&children=0&infants=0&pets=0&check_in=2023-02-26&check_out=2023-03-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/572103741139745432?adults=1&children=0&infants=0&pets=0&check_in=2023-01-24&check_out=2023-01-29&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/51596918?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-11&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/673637864074774522?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/611402294237214523?adults=1&children=0&infants=0&pets=0&check_in=2023-03-20&check_out=2023-03-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/42641765?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/28277705?adults=1&children=0&infants=0&pets=0&check_in=2023-03-05&check_out=2023-03-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/52899791?adults=1&children=0&infants=0&pets=0&check_in=2023-03-18&check_out=2023-03-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/791744313492866759?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/46048765?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/773118921716241392?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/36063690?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/32509871?adults=1&children=0&infants=0&pets=0&check_in=2023-03-02&check_out=2023-03-09&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/26442003?adults=1&children=0&infants=0&pets=0&check_in=2023-05-29&check_out=2023-06-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/619245723820096877?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/571668401920099499?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/620217090290949354?adults=1&children=0&infants=0&pets=0&check_in=2023-01-21&check_out=2023-01-28&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/46784342?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44827813?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/50757650?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/22364339?adults=1&children=0&infants=0&pets=0&check_in=2023-01-28&check_out=2023-02-04&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/759302343704247881?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/51530480?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/620218739043546518?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/51134026?adults=1&children=0&infants=0&pets=0&check_in=2023-03-02&check_out=2023-03-07&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/48657959?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/22364339?adults=1&children=0&infants=0&pets=0&check_in=2023-01-28&check_out=2023-02-04&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/51530480?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/759302343704247881?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/45692697?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-12&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/42828138?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/43807794?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/51596918?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-11&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/571668401920099499?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/805796839887683673?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/10733576?adults=1&children=0&infants=0&pets=0&check_in=2023-03-12&check_out=2023-03-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/10845191?adults=1&children=0&infants=0&pets=0&check_in=2023-04-20&check_out=2023-04-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/47571956?adults=1&children=0&infants=0&pets=0&check_in=2023-06-30&check_out=2023-07-07&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/750740708278296296?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/45546939?adults=1&children=0&infants=0&pets=0&check_in=2023-03-01&check_out=2023-03-06&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/45747962?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-05&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44469927?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/566428431722674289?adults=1&children=0&infants=0&pets=0&check_in=2023-05-02&check_out=2023-05-07&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/53473869?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/662149370590077192?adults=1&children=0&infants=0&pets=0&check_in=2023-02-20&check_out=2023-02-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/43243215?adults=1&children=0&infants=0&pets=0&check_in=2023-01-25&check_out=2023-01-30&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44274690?adults=1&children=0&infants=0&pets=0&check_in=2023-01-23&check_out=2023-01-28&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/52899791?adults=1&children=0&infants=0&pets=0&check_in=2023-03-18&check_out=2023-03-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44031038?adults=1&children=0&infants=0&pets=0&check_in=2023-06-12&check_out=2023-06-19&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/42320793?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/36063690?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/556403144075739762?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/651298281979473745?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44827813?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/49920591?adults=1&children=0&infants=0&pets=0&check_in=2023-03-05&check_out=2023-03-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/16967210?adults=1&children=0&infants=0&pets=0&check_in=2023-04-14&check_out=2023-04-20&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/790293061826668019?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/43476654?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/45488966?adults=1&children=0&infants=0&pets=0&check_in=2023-01-19&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/802021977482508406?adults=1&children=0&infants=0&pets=0&check_in=2023-01-21&check_out=2023-01-28&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/49271757?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/52512859?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/42191068?adults=1&children=0&infants=0&pets=0&check_in=2023-02-12&check_out=2023-02-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/556403144075739762?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/51686892?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/48669044?adults=1&children=0&infants=0&pets=0&check_in=2023-02-22&check_out=2023-02-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/28144301?adults=1&children=0&infants=0&pets=0&check_in=2023-01-25&check_out=2023-01-30&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/53109666?adults=1&children=0&infants=0&pets=0&check_in=2023-03-12&check_out=2023-03-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/738847781625605690?adults=1&children=0&infants=0&pets=0&check_in=2023-04-24&check_out=2023-04-29&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/794623796837107792?adults=1&children=0&infants=0&pets=0&check_in=2023-01-20&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/614982397366037662?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/48806789?adults=1&children=0&infants=0&pets=0&check_in=2023-02-06&check_out=2023-02-11&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/43523807?adults=1&children=0&infants=0&pets=0&check_in=2023-03-19&check_out=2023-03-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/36908027?adults=1&children=0&infants=0&pets=0&check_in=2023-03-20&check_out=2023-03-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/28554132?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/788736158654496985?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/48686587?adults=1&children=0&infants=0&pets=0&check_in=2023-02-16&check_out=2023-02-21&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/48137229?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/6585827?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/42863657?adults=1&children=0&infants=0&pets=0&check_in=2023-02-06&check_out=2023-02-13&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/731499385976629530?adults=1&children=0&infants=0&pets=0&check_in=2023-01-26&check_out=2023-02-02&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/36063690?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/39246575?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/14890511?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/670870724333913352?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/683089375448589008?adults=1&children=0&infants=0&pets=0&check_in=2023-08-01&check_out=2023-08-06&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/25911812?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/52922148?adults=1&children=0&infants=0&pets=0&check_in=2023-01-19&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/685498433816815291?adults=1&children=0&infants=0&pets=0&check_in=2023-03-05&check_out=2023-03-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/17253081?adults=1&children=0&infants=0&pets=0&check_in=2023-02-02&check_out=2023-02-07&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/54090003?adults=1&children=0&infants=0&pets=0&check_in=2023-01-19&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/38470295?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/49665188?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/25410569?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/47306107?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44454697?adults=1&children=0&infants=0&pets=0&check_in=2023-02-10&check_out=2023-02-16&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/586141223158601994?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/663558036986447712?adults=1&children=0&infants=0&pets=0&check_in=2023-01-21&check_out=2023-01-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/802021977482508406?adults=1&children=0&infants=0&pets=0&check_in=2023-01-21&check_out=2023-01-28&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/555584093029808791?adults=1&children=0&infants=0&pets=0&check_in=2023-01-21&check_out=2023-01-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/43516799?adults=1&children=0&infants=0&pets=0&check_in=2023-09-17&check_out=2023-09-22&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/52082928?adults=1&children=0&infants=0&pets=0&check_in=2023-05-25&check_out=2023-06-01&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/53515409?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/53180182?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/50276168?adults=1&children=0&infants=0&pets=0&check_in=2023-01-24&check_out=2023-01-29&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/572103741139745432?adults=1&children=0&infants=0&pets=0&check_in=2023-01-24&check_out=2023-01-29&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/607061907166941199?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/52272212?adults=1&children=0&infants=0&pets=0&check_in=2023-01-31&check_out=2023-02-06&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/643917634539054270?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/20856073?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/47853849?adults=1&children=0&infants=0&pets=0&check_in=2023-03-13&check_out=2023-03-18&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/547187488400579776?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/3932670?adults=1&children=0&infants=0&pets=0&check_in=2023-04-17&check_out=2023-04-22&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/803338335713548033?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/734667707057877756?adults=1&children=0&infants=0&pets=0&check_in=2023-02-12&check_out=2023-02-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/734667707057877756?adults=1&children=0&infants=0&pets=0&check_in=2023-02-12&check_out=2023-02-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/52363949?adults=1&children=0&infants=0&pets=0&check_in=2023-02-06&check_out=2023-02-11&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/41364971?adults=1&children=0&infants=0&pets=0&check_in=2023-03-05&check_out=2023-03-11&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44086554?adults=1&children=0&infants=0&pets=0&check_in=2023-03-01&check_out=2023-03-07&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/45488966?adults=1&children=0&infants=0&pets=0&check_in=2023-01-19&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/42828138?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/26704399?adults=1&children=0&infants=0&pets=0&check_in=2023-04-08&check_out=2023-04-13&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/40135137?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/567788414508459631?adults=1&children=0&infants=0&pets=0&check_in=2023-01-20&check_out=2023-01-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/671898836909946262?adults=1&children=0&infants=0&pets=0&check_in=2023-01-23&check_out=2023-01-29&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44031038?adults=1&children=0&infants=0&pets=0&check_in=2023-06-12&check_out=2023-06-19&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/32806956?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/11258864?adults=1&children=0&infants=0&pets=0&check_in=2023-01-21&check_out=2023-01-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/51956443?adults=1&children=0&infants=0&pets=0&check_in=2023-01-26&check_out=2023-02-01&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/38131435?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/12349210?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/50768533?adults=1&children=0&infants=0&pets=0&check_in=2023-02-13&check_out=2023-02-18&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/45588312?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/13289354?adults=1&children=0&infants=0&pets=0&check_in=2023-01-19&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/26704399?adults=1&children=0&infants=0&pets=0&check_in=2023-04-08&check_out=2023-04-14&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/670870724333913352?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/50455820?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44469927?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/556370619614335737?adults=1&children=0&infants=0&pets=0&check_in=2023-08-10&check_out=2023-08-15&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/38719338?adults=1&children=0&infants=0&pets=0&check_in=2023-02-12&check_out=2023-02-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/33907970?adults=1&children=0&infants=0&pets=0&check_in=2023-01-27&check_out=2023-02-01&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44165333?adults=1&children=0&infants=0&pets=0&check_in=2023-02-08&check_out=2023-02-13&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/716388304158934417?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/721944402264095896?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/10563051?adults=1&children=0&infants=0&pets=0&check_in=2023-05-01&check_out=2023-05-06&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/47015377?adults=1&children=0&infants=0&pets=0&check_in=2023-01-27&check_out=2023-02-01&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/53460122?adults=1&children=0&infants=0&pets=0&check_in=2023-02-25&check_out=2023-03-04&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/51861612?adults=1&children=0&infants=0&pets=0&check_in=2023-02-12&check_out=2023-02-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/670980771120687394?adults=1&children=0&infants=0&pets=0&check_in=2023-01-31&check_out=2023-02-07&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/47791290?adults=1&children=0&infants=0&pets=0&check_in=2023-10-20&check_out=2023-10-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/52900340?adults=1&children=0&infants=0&pets=0&check_in=2023-02-25&check_out=2023-03-02&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/43476654?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/46784342?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/698975263275419971?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-28&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/33907970?adults=1&children=0&infants=0&pets=0&check_in=2023-01-27&check_out=2023-02-01&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/671016116684973586?adults=1&children=0&infants=0&pets=0&check_in=2023-02-21&check_out=2023-02-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/42191068?adults=1&children=0&infants=0&pets=0&check_in=2023-02-12&check_out=2023-02-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/599699502795231227?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/798457669497623793?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/737552837590909483?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/50206309?adults=1&children=0&infants=0&pets=0&check_in=2023-02-20&check_out=2023-02-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/38080630?adults=1&children=0&infants=0&pets=0&check_in=2023-03-19&check_out=2023-03-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/733987897564897984?adults=1&children=0&infants=0&pets=0&check_in=2023-01-21&check_out=2023-01-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/716434153847043906?adults=1&children=0&infants=0&pets=0&check_in=2023-01-30&check_out=2023-02-04&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/677432783387536095?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/678937378254782795?adults=1&children=0&infants=0&pets=0&check_in=2023-09-01&check_out=2023-09-08&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/53888064?adults=1&children=0&infants=0&pets=0&check_in=2023-09-18&check_out=2023-09-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/35473872?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/48686587?adults=1&children=0&infants=0&pets=0&check_in=2023-02-16&check_out=2023-02-21&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/49665188?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/45213074?adults=1&children=0&infants=0&pets=0&check_in=2023-03-03&check_out=2023-03-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/17152504?adults=1&children=0&infants=0&pets=0&check_in=2023-02-03&check_out=2023-02-09&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/17253081?adults=1&children=0&infants=0&pets=0&check_in=2023-02-02&check_out=2023-02-07&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/585311363438797308?adults=1&children=0&infants=0&pets=0&check_in=2023-02-14&check_out=2023-02-19&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/672148377508806019?adults=1&children=0&infants=0&pets=0&check_in=2023-11-28&check_out=2023-12-04&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/12414785?adults=1&children=0&infants=0&pets=0&check_in=2023-04-22&check_out=2023-04-28&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/35980940?adults=1&children=0&infants=0&pets=0&check_in=2023-02-26&check_out=2023-03-04&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/17227417?adults=1&children=0&infants=0&pets=0&check_in=2023-03-31&check_out=2023-04-07&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/806249318335956109?adults=1&children=0&infants=0&pets=0&check_in=2023-02-03&check_out=2023-02-08&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/722540128797545418?adults=1&children=0&infants=0&pets=0&check_in=2023-11-01&check_out=2023-11-08&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/640957686671430797?adults=1&children=0&infants=0&pets=0&check_in=2023-03-26&check_out=2023-03-31&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/37773248?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/551864311114545925?adults=1&children=0&infants=0&pets=0&check_in=2023-06-05&check_out=2023-06-11&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/32705597?adults=1&children=0&infants=0&pets=0&check_in=2023-02-12&check_out=2023-02-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/19277929?adults=1&children=0&infants=0&pets=0&check_in=2023-01-23&check_out=2023-01-29&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/26766044?adults=1&children=0&infants=0&pets=0&check_in=2023-01-21&check_out=2023-01-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/9768173?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/32705597?adults=1&children=0&infants=0&pets=0&check_in=2023-02-12&check_out=2023-02-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/19277929?adults=1&children=0&infants=0&pets=0&check_in=2023-01-23&check_out=2023-01-29&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/26766044?adults=1&children=0&infants=0&pets=0&check_in=2023-01-21&check_out=2023-01-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/9768173?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/47754370?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/803478424422983777?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-24&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/46043645?adults=1&children=0&infants=0&pets=0&check_in=2023-01-30&check_out=2023-02-04&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/28277705?adults=1&children=0&infants=0&pets=0&check_in=2023-03-05&check_out=2023-03-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/725905771760277558?adults=1&children=0&infants=0&pets=0&check_in=2023-06-26&check_out=2023-07-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/6545997?adults=1&children=0&infants=0&pets=0&check_in=2023-02-02&check_out=2023-02-07&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/787436640855953369?adults=1&children=0&infants=0&pets=0&check_in=2023-01-19&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/638305428398330977?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/34683708?adults=1&children=0&infants=0&pets=0&check_in=2023-03-26&check_out=2023-03-31&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/18239784?adults=1&children=0&infants=0&pets=0&check_in=2023-02-04&check_out=2023-02-09&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/45692697?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-12&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44370005?adults=1&children=0&infants=0&pets=0&check_in=2023-03-06&check_out=2023-03-12&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/25880432?adults=1&children=0&infants=0&pets=0&check_in=2023-03-27&check_out=2023-04-02&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/50417240?adults=1&children=0&infants=0&pets=0&check_in=2023-02-27&check_out=2023-03-04&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/53641703?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44035109?adults=1&children=0&infants=0&pets=0&check_in=2023-03-05&check_out=2023-03-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/41645642?adults=1&children=0&infants=0&pets=0&check_in=2023-02-27&check_out=2023-03-04&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/802836588573681984?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/10733576?adults=1&children=0&infants=0&pets=0&check_in=2023-03-12&check_out=2023-03-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/651298281979473745?adults=1&children=0&infants=0&pets=0&check_in=2023-01-18&check_out=2023-01-23&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/702136058838170491?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/780393189043316201?adults=1&children=0&infants=0&pets=0&check_in=2023-02-12&check_out=2023-02-17&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/29138832?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/18750916?adults=1&children=0&infants=0&pets=0&check_in=2023-02-13&check_out=2023-02-19&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/16132937?adults=1&children=0&infants=0&pets=0&check_in=2023-11-16&check_out=2023-11-21&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/673637864074774522?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/4500694?adults=1&children=0&infants=0&pets=0&check_in=2023-02-27&check_out=2023-03-04&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/26991935?adults=1&children=0&infants=0&pets=0&check_in=2023-02-25&check_out=2023-03-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/16213810?adults=1&children=0&infants=0&pets=0&check_in=2023-03-13&check_out=2023-03-18&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/41762147?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/5520273?adults=1&children=0&infants=0&pets=0&check_in=2023-02-10&check_out=2023-02-15&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/36473296?adults=1&children=0&infants=0&pets=0&check_in=2023-01-19&check_out=2023-01-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/638305428398330977?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/724505227705541419?adults=1&children=0&infants=0&pets=0&check_in=2023-02-20&check_out=2023-02-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/27720151?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/39242461?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/45754546?adults=1&children=0&infants=0&pets=0&check_in=2023-02-06&check_out=2023-02-13&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/711323457881778389?adults=1&children=0&infants=0&pets=0&check_in=2023-01-20&check_out=2023-01-27&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/27871508?adults=1&children=0&infants=0&pets=0&check_in=2023-02-27&check_out=2023-03-04&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/5937726?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/35967247?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/623632030831415322?adults=1&children=0&infants=0&pets=0&check_in=2023-02-05&check_out=2023-02-10&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/18251917?adults=1&children=0&infants=0&pets=0&check_in=2023-06-21&check_out=2023-06-26&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/44401285?adults=1&children=0&infants=0&pets=0&check_in=2023-01-23&check_out=2023-01-28&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/53638118?adults=1&children=0&infants=0&pets=0&check_in=2023-01-29&check_out=2023-02-03&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/47791290?adults=1&children=0&infants=0&pets=0&check_in=2023-10-20&check_out=2023-10-25&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/31358573?adults=1&children=0&infants=0&pets=0&check_in=2023-03-09&check_out=2023-03-14&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/51421663?adults=1&children=0&infants=0&pets=0&check_in=2023-01-23&check_out=2023-01-30&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/686012375955193499?adults=1&children=0&infants=0&pets=0&check_in=2023-01-22&check_out=2023-01-28&previous_page_section_name=1000',
+        'https://www.airbnb.com//rooms/738847781625605690?adults=1&children=0&infants=0&pets=0&check_in=2023-04-24&check_out=2023-04-29&previous_page_section_name=1000']
+
+    print('get detail url processing time: %.2f second(s)' % (time.time() - start_time))
+
+    # get datas
+    start_time = time.time()
+    with concurrent.futures.thread.ThreadPoolExecutor() as executor:
+        datas = list(executor.map(get_datas_2, detail_urls, repeat(working_proxies, len(detail_urls))))
+
+    print(datas)
+    print('get datas processing time: %.2f second(s)' % (time.time() - start_time))
+
+    # save to csv
+    start_time = time.time()
+    to_csv(datas, save_path)
+    print('to_csv processing time: %.2f second(s)' % (time.time() - start_time))
