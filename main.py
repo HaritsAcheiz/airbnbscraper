@@ -405,7 +405,7 @@ def to_csv(datas=None, filepath=None):
     print(f'{filepath} created')
 
 if __name__ == '__main__':
-    url = "https://www.airbnb.com/s/Belgium/homes?tab_id=home_tab&refinement_paths%5B%5D=%2Fhomes&flexible_trip_lengths%5B%5D=one_week&price_filter_input_type=0&price_filter_num_nights=1&query=Belgium&place_id=ChIJl5fz7WR9wUcR8g_mObTy60c&date_picker_type=calendar&checkin=2023-01-07&checkout=2023-01-08&adults=1&source=structured_search_input_header&search_type=autocomplete_click&federated_search_session_id=dc608cc7-e1d4-4363-9d73-4b7da1ff6d05&pagination_search=true&cursor=eyJzZWN0aW9uX29mZnNldCI6MiwiaXRlbXNfb2Zmc2V0IjoyODgsInZlcnNpb24iOjF9"
+    url = "https://www.airbnb.com/s/Belgium/homes?tab_id=home_tab&refinement_paths%5B%5D=%2Fhomes&flexible_trip_lengths%5B%5D=one_week&price_filter_input_type=0&price_filter_num_nights=1&query=Belgium&place_id=ChIJl5fz7WR9wUcR8g_mObTy60c&date_picker_type=calendar&checkin=2023-01-07&checkout=2023-01-08&adults=1&source=structured_search_input_header&search_type=autocomplete_click&federated_search_session_id=dc608cc7-e1d4-4363-9d73-4b7da1ff6d05&pagination_search=true&cursor=eyJzZWN0aW9uX29mZnNldCI6MiwiaXRlbXNfb2Zmc2V0IjoyODgsInZlcnNpb24iOjF9&display_currency=USD"
     save_path = "C:/NaruProject/airbnbscraper/result.csv"
 
     # without multithreading
